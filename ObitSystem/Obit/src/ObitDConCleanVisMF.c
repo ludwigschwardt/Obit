@@ -996,18 +996,16 @@ static void SubNewCCs (ObitDConCleanVis *inn, olong *newCC, ObitFArray **pixarra
   ObitTable *tempTable = NULL;
   ObitTableCC *CCTable = NULL;
   ObitImageMF *image=NULL;
-  ObitImage *theBeam=NULL;
   ImSubFuncArg **threadArgs;
   ObitFArray **comps=NULL;
   ObitFArray **inFArrays, **bmFArrays;
   ObitImageDesc *outDesc;
   ofloat PeakIn, PeakOut, RMS,  parms[20];
-  olong i, j, l, ip, jp, ncc, ver, nThreads=0, nTh, nfield, ifield, nDo, nLeft, PeakInPos[2];
+  olong i, j, l, ip, jp, ncc, ver, nThreads=0, mThreads=0, nTh, nfield, ifield, nDo, nLeft, PeakInPos[2];
   olong ispec, naxis[2], plane[5] = {1,1,1,1,1};
   gboolean doAbs, OK;
   gchar *tabType = "AIPS CC";
   ObitDConCleanVisMF *in = (ObitDConCleanVisMF*)inn;
-  ObitImageClassInfo *imgClass;
   gchar *routine = "SubNewCCs";
 
   /* error checks */
@@ -1051,7 +1049,8 @@ static void SubNewCCs (ObitDConCleanVis *inn, olong *newCC, ObitFArray **pixarra
 
   /* setup for threaded processing
      Initialize Threading */
-  nThreads = MakeImSubFuncArgs (in->thread, err, &threadArgs);
+  mThreads = MakeImSubFuncArgs (in->thread, err, &threadArgs);
+  nThreads = 1;  /* NO threading done here, it is done at a lower level */
   /* No more threads than work to spread them across */
   if (((ObitImageMF*)in->mosaic->images[0])->nSpec>1) nTh = nThreads;
   else nTh = 1;
@@ -1077,8 +1076,6 @@ static void SubNewCCs (ObitDConCleanVis *inn, olong *newCC, ObitFArray **pixarra
     /* Which image? */
     image = (ObitImageMF*)in->mosaic->images[ifield-1];
     /* Which Beam? */
-    imgClass  = (ObitImageClassInfo*)image->ClassInfo;    /* Image class */
-    theBeam   = imgClass->ObitImageGetBeam((ObitImage*)image, 0, plane, err);
     if (err->error) Obit_traceback_msg (err, routine, in->name);
     
     nTh = MIN (nThreads, image->nSpec);
@@ -1163,7 +1160,7 @@ static void SubNewCCs (ObitDConCleanVis *inn, olong *newCC, ObitFArray **pixarra
  cleanup:
   g_free(inFArrays); inFArrays = NULL;
   g_free(bmFArrays); bmFArrays = NULL;
-  KillImSubFuncArgs (nThreads, threadArgs);
+  KillImSubFuncArgs (mThreads, threadArgs);
   if (comps) {
     for (i=0; i<nfield; i++) comps[i] = ObitFArrayUnref(comps[i]);
     g_free(comps);
@@ -1641,7 +1638,7 @@ static void GaussTaper (ObitCArray* uvGrid, ObitImageDesc *imDesc,
   ofloat dU, dV, UU, VV, texp;
   ofloat konst, xmaj, xmin, cpa, spa, b1, b2, b3, bb2, bb3;
   ofloat taper, norm, *grid, tx, ty;
-  olong i, j, nx, ny, ndim, naxis[2];
+  olong i, j, nx, ny, naxis[2];
 
   /* Image info - descriptor should still be valid */
   nx = imDesc->inaxes[imDesc->jlocr];
@@ -1668,7 +1665,7 @@ static void GaussTaper (ObitCArray* uvGrid, ObitImageDesc *imDesc,
   b3 = - 2.0 * spa * cpa * (xmaj*xmaj - xmin*xmin);
   
   /* pointer to complex grid */
-  ndim = 2; naxis[0] = 0; naxis[1] = 0; 
+  naxis[0] = naxis[1] = 0;
   grid = ObitCArrayIndex(uvGrid, naxis);
   
   /* loop over uv array */  
@@ -1872,9 +1869,9 @@ void ConvGauss (ObitImage *inImage, olong *plane,
 		ofloat Gaumaj, ofloat Gaumin, ofloat GauPA, ofloat rescale,
 		ObitErr *err)
 {
-  ObitIOCode   iretCode, oretCode;
+  ObitIOCode   iretCode;
   olong      ndim=2, naxis[2], blc[2], trc[2], cen[2];
-  ofloat Beam[3], cells[2], maprot;
+  ofloat cells[2], maprot;
   ObitFFT    *FFTfor=NULL, *FFTrev=NULL;
   ObitFArray *xferFn=NULL, *subXferFn=NULL, *zeroArray=NULL;
   ObitFArray *padImage=NULL, *tmpArray=NULL;
@@ -1883,11 +1880,6 @@ void ConvGauss (ObitImage *inImage, olong *plane,
   gchar *routine = "ConvGauss";
 
   if (err->error) return;  /* existing error? */
-
-  /* Save output resolution */
-  Beam[0] = inImage->myDesc->beamMaj;
-  Beam[1] = inImage->myDesc->beamMin;
-  Beam[2] = inImage->myDesc->beamPA;
 
   /* Input beam not less than zero */
   if ((inImage->myDesc->beamMaj<0.0) || (inImage->myDesc->beamMin<0.0)) {
@@ -1988,7 +1980,7 @@ void ConvGauss (ObitImage *inImage, olong *plane,
      ObitImageUtilArray2Image ("ConvolDebug1.fits",1,tmpArray, err); */
   
   /* Write plane */
-  oretCode = ObitImagePutPlane(inImage, tmpArray->array, plane, err);
+  ObitImagePutPlane(inImage, tmpArray->array, plane, err);
   if (err->error) goto cleanup;
   tmpArray  = ObitFArrayUnref(tmpArray);
   

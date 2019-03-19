@@ -5473,6 +5473,7 @@ void ObitImageUtilFitBeam (ObitImage *beam, ObitErr *err)
   ObitFitRegion *reg=NULL;
   ObitFitModel **models = {NULL};
   ObitInfoType type;
+  gboolean True=TRUE;
   gint32 dim[MAXINFOELEMDIM] = {1,1,1,1,1};
   gchar *routine = "ObitImageUtilFitBeam";
 
@@ -5534,7 +5535,7 @@ void ObitImageUtilFitBeam (ObitImage *beam, ObitErr *err)
   DeltaX = 11.0;
   DeltaY = 11.0;
   nparm  = 3;
-  parms[0]  = parms[1] = 3.0; parms[2] = 0.0;
+  parms[0]  = parms[1] = 6.0; parms[2] = 0.0;
   nmodel = 1;
   models = g_malloc0(sizeof(ObitFitModel*));
   models[0] = ObitFitModelCreate ("model", OBIT_FitModel_GaussMod, 
@@ -5549,6 +5550,10 @@ void ObitImageUtilFitBeam (ObitImage *beam, ObitErr *err)
 
   /* Fit in pixels/deg */
   imFit  = ObitImageFitCreate ("Fitter");
+  /* Fix Peak */
+  dim[0] = dim[1] = dim[2] = dim[3] = 1;
+  ObitInfoListAlwaysPut(imFit->info, "FixFlux",  OBIT_bool, dim, &True);
+
   /* Turn off messages */
   prtLv = err->prtLv;
   err->prtLv = 0;
@@ -6237,6 +6242,7 @@ static olong MakePBCorFuncArgs (ObitThread *thread,
     (*ThreadArgs)[i]->err      = err;
     (*ThreadArgs)[i]->first    = 1;
     (*ThreadArgs)[i]->last     = outDesc->inaxes[1];
+    (*ThreadArgs)[i]->doInvert = doInvert;
   }
 
   return nThreads;
